@@ -22,8 +22,15 @@ import words from "@/data/words.json";
 type Screen = "idle" | "session" | "done";
 
 const CATEGORIES = [
-  "all", "greetings", "numbers", "family", "food",
-  "verbs", "places", "time", "phrases", "colors", "daily",
+  "all",
+  "greetings", "family", "phrases",
+  "food", "daily", "household", "clothing",
+  "verbs", "adjectives",
+  "body", "health", "emotions",
+  "animals", "nature", "agriculture",
+  "places", "directions", "time",
+  "education", "work", "culture", "language",
+  "colors",
 ];
 
 // How many wrong answers in a row before re-inserting the card at end of session
