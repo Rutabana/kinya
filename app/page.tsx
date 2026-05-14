@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { BookOpen, Languages, Radio, Flame, Star, CheckCircle, ChevronRight } from "lucide-react";
-import { loadState, getTodayStats, getTotalLearned, getStreak, getDueCards } from "@/lib/srs";
+import { loadState, getTodayStats, getTotalLearned, getStreak, getFlatQueue } from "@/lib/srs";
 import { loadRadioPrefs, todayDateString } from "@/lib/radio";
 import words from "@/data/words.json";
 
@@ -27,7 +27,7 @@ export default function Dashboard() {
     setStreak(getStreak(state));
     setLearned(getTotalLearned(state));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setDueCount(getDueCards(state, words as any, 50).length);
+    setDueCount(getFlatQueue(state, words as any).length);
     setTodayReviewed(getTodayStats(state).reviewed);
     setRadioToday(prefs.lastListenedDate === todayDateString());
   }, []);
