@@ -1,18 +1,27 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { ArrowLeftRight, Copy, Check, Loader2, ChevronLeft, BookmarkPlus } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ArrowLeftRight, Send, Star, Trash2, Loader2, ChevronLeft } from "lucide-react";
 import Link from "next/link";
-import { loadState, saveState, newCard, todayKey } from "@/lib/srs";
-import words from "@/data/words.json";
 
 type Direction = "en-rw" | "rw-en";
 
-interface Result {
-  translation: string;
+interface UserMessage {
+  role: "user";
+  text: string;
+  direction: Direction;
+}
+
+interface AssistantMessage {
+  role: "assistant";
+  text: string;
   romanization?: string;
   notes?: string;
+  direction: Direction;
+  starred: boolean;
 }
+
+type Message = UserMessage | AssistantMessage;
 
 interface SavedPhrase {
   input: string;
@@ -33,263 +42,322 @@ function loadSaved(): SavedPhrase[] {
   }
 }
 
-function savePhrases(phrases: SavedPhrase[]) {
+function persistSaved(phrases: SavedPhrase[]) {
   localStorage.setItem(SAVED_KEY, JSON.stringify(phrases));
 }
 
 export default function Translate() {
-  const [direction, setDirection] = useState<Direction>("en-rw");
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [result, setResult] = useState<Result | null>(null);
+  const [direction, setDirection] = useState<Direction>("en-rw");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"translate" | "saved">("translate");
+  const [tab, setTab] = useState<"chat" | "saved">("chat");
   const [savedPhrases, setSavedPhrases] = useState<SavedPhrase[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const fromLabel = direction === "en-rw" ? "English" : "Kinyarwanda";
-  const toLabel = direction === "en-rw" ? "Kinyarwanda" : "English";
+  useEffect(() => {
+    setSavedPhrases(loadSaved());
+  }, []);
 
-  const translate = async () => {
-    if (!input.trim()) return;
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput("");
+
+    const userMsg: UserMessage = { role: "user", text, direction };
+    setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
-    setError("");
-    setResult(null);
-    setSaved(false);
+
+    // Pass last 6 messages as context (3 turns)
+    const history = messages.slice(-6).map((m) => ({
+      role: m.role,
+      content:
+        m.role === "user"
+          ? m.text
+          : JSON.stringify({
+              translation: (m as AssistantMessage).text,
+              romanization: (m as AssistantMessage).romanization,
+              notes: (m as AssistantMessage).notes,
+            }),
+    }));
+
     try {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: input, direction }),
+        body: JSON.stringify({ text, direction, history }),
       });
-      if (!res.ok) throw new Error("Translation failed");
       const data = await res.json();
-      setResult(data);
+      if (data.error) throw new Error(data.error);
+
+      const assistantMsg: AssistantMessage = {
+        role: "assistant",
+        text: data.translation,
+        romanization: data.romanization,
+        notes: data.notes,
+        direction,
+        starred: false,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch {
-      setError("Translation failed. Check your API key or try again.");
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: "Translation failed. Please try again.", direction, starred: false },
+      ]);
     } finally {
       setLoading(false);
+      inputRef.current?.focus();
     }
   };
 
-  const copy = () => {
-    if (!result) return;
-    navigator.clipboard.writeText(result.translation);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const starMessage = (idx: number) => {
+    const msg = messages[idx] as AssistantMessage;
+    const userMsg = [...messages].slice(0, idx).reverse().find((m) => m.role === "user") as UserMessage | undefined;
 
-  const savePhrase = () => {
-    if (!result) return;
     const phrase: SavedPhrase = {
-      input,
-      translation: result.translation,
-      romanization: result.romanization,
-      direction,
+      input: userMsg?.text ?? "",
+      translation: msg.text,
+      romanization: msg.romanization,
+      direction: msg.direction,
       savedAt: Date.now(),
     };
-    const existing = loadSaved();
-    const updated = [phrase, ...existing].slice(0, 50);
-    savePhrases(updated);
-    setSaved(true);
 
-    // Try to match to a word card in the system
-    const matchedWord = (words as { id: number; rw: string; en: string }[]).find(
-      (w) =>
-        w.rw.toLowerCase() === result.translation.toLowerCase() ||
-        w.en.toLowerCase() === result.translation.toLowerCase()
-    );
-    if (matchedWord) {
-      const state = loadState();
-      if (!state.cards[matchedWord.id]) {
-        const key = todayKey();
-        const todayStats = state.dailyStats[key] ?? { reviewed: 0, newCards: 0 };
-        saveState({
-          cards: { ...state.cards, [matchedWord.id]: newCard(matchedWord.id) },
-          dailyStats: { ...state.dailyStats, [key]: { ...todayStats, newCards: todayStats.newCards + 1 } },
-        });
-      }
-    }
+    const updated = [phrase, ...savedPhrases].slice(0, 50);
+    persistSaved(updated);
+    setSavedPhrases(updated);
+    setMessages((prev) => prev.map((m, i) => (i === idx ? { ...m, starred: true } : m)));
   };
 
+  const fromLabel = direction === "en-rw" ? "English" : "Kinyarwanda";
+  const toLabel = direction === "en-rw" ? "Kinyarwanda" : "English";
+
   return (
-    <div className="max-w-xl mx-auto px-4 pt-10 pb-6">
-      <Link href="/" className="flex items-center gap-1 text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-        <ChevronLeft size={16} /> Home
-      </Link>
-
-      <h1 className="text-2xl font-bold mb-1">Translate</h1>
-
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl mb-6 mt-4" style={{ background: "var(--surface)" }}>
-        {(["translate", "saved"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setTab(t);
-              if (t === "saved") setSavedPhrases(loadSaved());
-            }}
-            className="flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all"
-            style={{
-              background: tab === t ? "var(--surface2)" : "transparent",
-              color: tab === t ? "var(--text)" : "var(--text-muted)",
-            }}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {tab === "translate" ? (
-        <div className="flex flex-col gap-4">
-          {/* Direction toggle */}
-          <div className="flex items-center gap-2">
-            <span
-              className="flex-1 text-center text-sm font-medium py-2 rounded-lg"
-              style={{ background: "var(--surface)" }}
-            >
-              {fromLabel}
-            </span>
+    <div className="max-w-xl mx-auto flex flex-col" style={{ height: "100dvh" }}>
+      {/* Header */}
+      <div className="px-4 pt-10 pb-4 flex-shrink-0">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center" style={{ color: "var(--text-muted)" }}>
+              <ChevronLeft size={18} />
+            </Link>
+            <h1 className="text-2xl font-bold">Translate</h1>
+          </div>
+          {messages.length > 0 && tab === "chat" && (
             <button
-              onClick={() => {
-                setDirection((d) => (d === "en-rw" ? "rw-en" : "en-rw"));
-                setResult(null);
-                setInput("");
-              }}
-              className="p-2 rounded-lg transition-all active:scale-90"
-              style={{ background: "var(--surface)", color: "var(--accent)" }}
+              onClick={() => setMessages([])}
+              className="p-2 rounded-lg"
+              style={{ color: "var(--text-muted)", background: "var(--surface)" }}
+              title="Clear conversation"
             >
-              <ArrowLeftRight size={18} />
+              <Trash2 size={15} />
             </button>
-            <span
-              className="flex-1 text-center text-sm font-medium py-2 rounded-lg"
-              style={{ background: "var(--surface)" }}
-            >
-              {toLabel}
-            </span>
-          </div>
-
-          {/* Input */}
-          <div className="relative">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) translate();
-              }}
-              placeholder={`Type in ${fromLabel}…`}
-              rows={4}
-              className="w-full rounded-xl p-4 text-sm resize-none outline-none transition-all"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            />
-            <span className="absolute bottom-3 right-3 text-[10px]" style={{ color: "var(--text-muted)" }}>
-              ⌘↵ to translate
-            </span>
-          </div>
-
-          <button
-            onClick={translate}
-            disabled={loading || !input.trim()}
-            className="w-full py-3 rounded-xl font-semibold text-black transition-all active:scale-[0.98] disabled:opacity-40"
-            style={{ background: "var(--accent)" }}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 size={16} className="animate-spin" /> Translating…
-              </span>
-            ) : (
-              "Translate"
-            )}
-          </button>
-
-          {error && (
-            <p className="text-sm text-center" style={{ color: "var(--red)" }}>
-              {error}
-            </p>
-          )}
-
-          {result && (
-            <div
-              className="rounded-xl p-4 flex flex-col gap-2"
-              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <p className="text-xs mb-1 font-semibold" style={{ color: "var(--text-muted)" }}>
-                    {toLabel}
-                  </p>
-                  <p className="text-xl font-bold" style={{ color: "var(--accent)" }}>
-                    {result.translation}
-                  </p>
-                  {result.romanization && (
-                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                      /{result.romanization}/
-                    </p>
-                  )}
-                  {result.notes && (
-                    <p className="text-xs mt-2 italic" style={{ color: "var(--text-muted)" }}>
-                      {result.notes}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={copy}
-                    className="p-2 rounded-lg transition-all"
-                    style={{ background: "var(--surface2)", color: copied ? "var(--green)" : "var(--text-muted)" }}
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
-                  <button
-                    onClick={savePhrase}
-                    className="p-2 rounded-lg transition-all"
-                    style={{ background: "var(--surface2)", color: saved ? "var(--green)" : "var(--text-muted)" }}
-                    title="Save phrase"
-                  >
-                    <BookmarkPlus size={16} />
-                  </button>
-                </div>
-              </div>
-              {saved && (
-                <p className="text-xs" style={{ color: "var(--green)" }}>
-                  Saved to phrases ✓
-                </p>
-              )}
-            </div>
           )}
         </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {savedPhrases.length === 0 ? (
-            <p className="text-sm text-center py-10" style={{ color: "var(--text-muted)" }}>
-              No saved phrases yet. Translate something and tap the bookmark icon.
-            </p>
-          ) : (
-            savedPhrases.map((p, i) => (
-              <div
-                key={i}
-                className="rounded-xl p-4"
-                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-              >
-                <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
-                  {p.direction === "en-rw" ? "EN → RW" : "RW → EN"}
+
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 rounded-xl mt-4" style={{ background: "var(--surface)" }}>
+          {(["chat", "saved"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all"
+              style={{
+                background: tab === t ? "var(--surface2)" : "transparent",
+                color: tab === t ? "var(--text)" : "var(--text-muted)",
+              }}
+            >
+              {t === "saved" ? `Saved${savedPhrases.length > 0 ? ` (${savedPhrases.length})` : ""}` : "Chat"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "chat" ? (
+        <>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 pb-4">
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                <p className="text-4xl select-none" aria-hidden>💬</p>
+                <p className="text-sm font-semibold">Start translating</p>
+                <p className="text-xs max-w-[220px]" style={{ color: "var(--text-muted)" }}>
+                  Type in English or Kinyarwanda. Star any response to save it.
                 </p>
-                <p className="text-sm text-muted" style={{ color: "var(--text-muted)" }}>{p.input}</p>
-                <p className="text-base font-semibold mt-1" style={{ color: "var(--accent)" }}>
-                  {p.translation}
-                </p>
-                {p.romanization && (
-                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>/{p.romanization}/</p>
-                )}
               </div>
-            ))
+            ) : (
+              <div className="flex flex-col gap-3 pt-2">
+                {messages.map((msg, i) =>
+                  msg.role === "user" ? (
+                    <div key={i} className="flex justify-end">
+                      <div
+                        className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-3"
+                        style={{ background: "var(--surface2)", border: "1px solid var(--border)" }}
+                      >
+                        <p className="text-[10px] mb-1 font-medium" style={{ color: "var(--text-muted)" }}>
+                          {msg.direction === "en-rw" ? "English" : "Kinyarwanda"}
+                        </p>
+                        <p className="text-sm">{msg.text}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={i} className="flex justify-start">
+                      <div
+                        className="max-w-[80%] rounded-2xl rounded-tl-sm px-4 py-3"
+                        style={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          borderLeft: "3px solid var(--accent)",
+                        }}
+                      >
+                        <p className="text-[10px] mb-1 font-medium" style={{ color: "var(--accent)" }}>
+                          {msg.direction === "en-rw" ? "Kinyarwanda" : "English"}
+                        </p>
+                        <p className="text-base font-semibold leading-snug" style={{ color: "var(--accent)" }}>
+                          {msg.text}
+                        </p>
+                        {msg.romanization && (
+                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                            /{msg.romanization}/
+                          </p>
+                        )}
+                        {msg.notes && (
+                          <p className="text-xs mt-2 italic leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                            {msg.notes}
+                          </p>
+                        )}
+                        <button
+                          onClick={() => starMessage(i)}
+                          className="mt-2 p-1 rounded transition-all active:scale-90"
+                          style={{ color: msg.starred ? "var(--accent)" : "var(--text-muted)" }}
+                          title={msg.starred ? "Saved" : "Save phrase"}
+                        >
+                          <Star size={13} fill={msg.starred ? "var(--accent)" : "none"} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {loading && (
+                  <div className="flex justify-start">
+                    <div
+                      className="px-4 py-3 rounded-2xl rounded-tl-sm"
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        borderLeft: "3px solid var(--accent)",
+                      }}
+                    >
+                      <Loader2 size={16} className="animate-spin" style={{ color: "var(--accent)" }} />
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Input bar */}
+          <div
+            className="flex-shrink-0 px-4 pb-safe pt-3"
+            style={{ borderTop: "1px solid var(--border)", background: "var(--bg)" }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                style={{ background: "var(--surface)", color: "var(--text-muted)" }}
+              >
+                {fromLabel}
+              </span>
+              <button
+                onClick={() => setDirection((d) => (d === "en-rw" ? "rw-en" : "en-rw"))}
+                className="p-1.5 rounded-lg transition-all active:scale-90"
+                style={{ background: "var(--surface)", color: "var(--accent)" }}
+              >
+                <ArrowLeftRight size={14} />
+              </button>
+              <span
+                className="text-xs font-medium px-2.5 py-1 rounded-lg"
+                style={{ background: "var(--surface)", color: "var(--text-muted)" }}
+              >
+                {toLabel}
+              </span>
+            </div>
+
+            <div className="flex items-end gap-2 pb-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                onInput={(e) => {
+                  const t = e.target as HTMLTextAreaElement;
+                  t.style.height = "auto";
+                  t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
+                }}
+                placeholder={`Type in ${fromLabel}…`}
+                rows={1}
+                maxLength={500}
+                className="flex-1 rounded-xl px-4 py-3 text-sm resize-none outline-none"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                }}
+              />
+              <button
+                onClick={send}
+                disabled={loading || !input.trim()}
+                className="p-3 rounded-xl transition-all active:scale-90 disabled:opacity-40 flex-shrink-0"
+                style={{ background: "var(--accent)", color: "#000" }}
+              >
+                <Send size={17} />
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 overflow-y-auto px-4 pb-6">
+          {savedPhrases.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+              <p className="text-4xl select-none" aria-hidden>⭐</p>
+              <p className="text-sm font-semibold">No saved phrases yet</p>
+              <p className="text-xs max-w-[220px]" style={{ color: "var(--text-muted)" }}>
+                Tap the star on any translation to save it here.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 pt-2">
+              {savedPhrases.map((p) => (
+                <div
+                  key={p.savedAt}
+                  className="rounded-xl p-4"
+                  style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                >
+                  <p className="text-[10px] mb-1 font-semibold" style={{ color: "var(--text-muted)" }}>
+                    {p.direction === "en-rw" ? "EN → RW" : "RW → EN"}
+                  </p>
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>{p.input}</p>
+                  <p className="text-base font-semibold mt-1" style={{ color: "var(--accent)" }}>
+                    {p.translation}
+                  </p>
+                  {p.romanization && (
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>/{p.romanization}/</p>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

@@ -21,12 +21,14 @@ export default function RadioPage() {
   const [goalDone, setGoalDone] = useState(false);
   const [notifGranted, setNotifGranted] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const goalDoneRef = useRef(false);
 
   useEffect(() => {
     const p = loadRadioPrefs();
     setPrefs(p);
     const today = todayDateString();
     if (p.lastListenedDate === today && p.totalMinutes >= TARGET_MINUTES) {
+      goalDoneRef.current = true;
       setGoalDone(true);
       setElapsed(TARGET_MINUTES * 60);
     }
@@ -35,14 +37,20 @@ export default function RadioPage() {
     );
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
   const startTimer = () => {
     setTimerRunning(true);
     intervalRef.current = setInterval(() => {
       setElapsed((s) => {
         const next = s + 1;
-        if (next >= TARGET_MINUTES * 60 && !goalDone) {
+        if (next >= TARGET_MINUTES * 60 && !goalDoneRef.current) {
+          goalDoneRef.current = true;
           setGoalDone(true);
-          // save completion
           setPrefs((p) => {
             if (!p) return p;
             const updated = { ...p, lastListenedDate: todayDateString(), totalMinutes: TARGET_MINUTES };

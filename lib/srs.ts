@@ -96,9 +96,15 @@ export function applyReview(card: ReviewCard, rating: 0 | 1 | 2 | 3): ReviewCard
       phase = "learning";
       stepIndex = 0;
     } else if (rating === 2) {
-      // Good → advance one step
-      stepIndex = Math.min(stepIndex + 1, LEARNING_STEPS_MS.length - 1);
-      phase = "learning";
+      // Good → advance one step; graduate when past last step
+      const nextStep = stepIndex + 1;
+      if (nextStep >= LEARNING_STEPS_MS.length) {
+        phase = "review";
+        interval = 1;
+      } else {
+        stepIndex = nextStep;
+        phase = "learning";
+      }
     } else {
       // Easy → jump straight to review phase at 1-year interval
       phase = "review";
