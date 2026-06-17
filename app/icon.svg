@@ -11,8 +11,5 @@
   </defs>
   <rect width="100" height="100" rx="22" fill="url(#bg)"/>
   <rect width="100" height="60" rx="22" fill="url(#shine)"/>
-  <!-- K letterform: vertical bar + two diagonals -->
-  <line x1="31" y1="22" x2="31" y2="78" stroke="#c8a96e" stroke-width="11" stroke-linecap="round"/>
-  <line x1="31" y1="50" x2="69" y2="22" stroke="#c8a96e" stroke-width="11" stroke-linecap="round"/>
-  <line x1="35" y1="50" x2="71" y2="78" stroke="#c8a96e" stroke-width="11" stroke-linecap="round"/>
+  <path d="M 71 29 A 30 30 0 1 0 71 71" fill="none" stroke="#c8a96e" stroke-width="12" stroke-linecap="round"/>
 </svg>

@@ -28,9 +28,7 @@ export default function Nav() {
             style={{ background: "var(--accent)" }}
           >
             <svg viewBox="0 0 100 100" width="18" height="18">
-              <line x1="31" y1="22" x2="31" y2="78" stroke="#0f0f0f" strokeWidth="14" strokeLinecap="round"/>
-              <line x1="31" y1="50" x2="69" y2="22" stroke="#0f0f0f" strokeWidth="14" strokeLinecap="round"/>
-              <line x1="35" y1="50" x2="71" y2="78" stroke="#0f0f0f" strokeWidth="14" strokeLinecap="round"/>
+              <path d="M 71 29 A 30 30 0 1 0 71 71" fill="none" stroke="#0f0f0f" strokeWidth="12" strokeLinecap="round"/>
             </svg>
           </div>
           <div>
