@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BookOpen, Languages, Radio, Flame, Star, CheckCircle, ChevronRight } from "lucide-react";
+import { BookOpen, Languages, Radio as RadioIcon, Flame, Star, CheckCircle, ChevronRight } from "lucide-react";
 import { loadState, getTodayStats, getTotalLearned, getStreak, getFlatQueue } from "@/lib/srs";
 import { loadRadioPrefs, todayDateString } from "@/lib/radio";
 import words from "@/data/words.json";
@@ -80,8 +80,13 @@ export default function Dashboard() {
         <StatCard icon={<CheckCircle size={17} />} value={todayReviewed} label="Today" color="var(--green)" />
       </motion.div>
 
+      {/* Daily goal */}
+      <motion.div {...fadeUp(0.12)}>
+        <DailyGoalButton dueCount={dueCount} radioToday={radioToday} />
+      </motion.div>
+
       {/* Action cards */}
-      <motion.div {...fadeUp(0.14)}>
+      <motion.div {...fadeUp(0.18)}>
         <h2
           className="text-[10px] font-bold uppercase tracking-[0.14em] mb-3"
           style={{ color: "var(--text-muted)" }}
@@ -104,7 +109,7 @@ export default function Dashboard() {
           />
           <ActionCard
             href="/radio"
-            icon={<Radio size={20} />}
+            icon={<RadioIcon size={20} />}
             title="Radio"
             subtitle={radioToday ? "Done for today ✓" : "15 min listening goal"}
             done={radioToday}
@@ -114,6 +119,64 @@ export default function Dashboard() {
 
       <WordOfDay />
     </div>
+  );
+}
+
+function DailyGoalButton({ dueCount, radioToday }: { dueCount: number; radioToday: boolean }) {
+  const flashcardsDone = dueCount === 0;
+  const allDone = flashcardsDone && radioToday;
+  const doneTasks = (flashcardsDone ? 1 : 0) + (radioToday ? 1 : 0);
+
+  if (allDone) {
+    return (
+      <div
+        className="w-full rounded-2xl p-5 flex items-center gap-4 mb-8"
+        style={{ background: "var(--surface)", border: "1px solid var(--green)" }}
+      >
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: "rgba(34,197,94,0.12)", color: "var(--green)" }}
+        >
+          <CheckCircle size={22} />
+        </div>
+        <div>
+          <p className="font-bold text-sm" style={{ color: "var(--green)" }}>All done for today</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Come back tomorrow</p>
+        </div>
+        <span className="ml-auto text-xs font-bold" style={{ color: "var(--green)" }}>2 / 2</span>
+      </div>
+    );
+  }
+
+  const href = !flashcardsDone ? "/flashcards" : "/radio";
+  const taskName = !flashcardsDone ? "Flashcards" : "Radio";
+  const taskDetail = !flashcardsDone ? `${dueCount} cards due` : "15 min listening";
+  const TaskIcon = !flashcardsDone ? BookOpen : RadioIcon;
+
+  return (
+    <Link
+      href={href}
+      className="w-full rounded-2xl p-5 flex items-center gap-4 mb-8 active:scale-[0.98] transition-transform duration-150"
+      style={{ background: "var(--accent)" }}
+    >
+      <div
+        className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: "rgba(15,15,15,0.18)", color: "#0f0f0f" }}
+      >
+        <TaskIcon size={20} />
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(15,15,15,0.5)" }}>
+          Daily goal
+        </p>
+        <p className="font-bold text-base leading-tight mt-0.5" style={{ color: "#0f0f0f" }}>{taskName}</p>
+        <p className="text-xs mt-0.5" style={{ color: "rgba(15,15,15,0.55)" }}>{taskDetail}</p>
+      </div>
+      <div className="ml-auto flex items-center gap-2" style={{ color: "#0f0f0f" }}>
+        <span className="text-xs font-bold" style={{ opacity: 0.55 }}>{doneTasks} / 2</span>
+        <ChevronRight size={18} />
+      </div>
+    </Link>
   );
 }
 
