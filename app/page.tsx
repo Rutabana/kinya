@@ -46,10 +46,9 @@ export default function Dashboard() {
               {greeting}
             </h1>
             <p className="mt-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
-              Ready to practice Kinyarwanda?
+              Ready to study?
             </p>
           </div>
-          <span className="text-3xl mt-0.5 select-none" aria-hidden>🇷🇼</span>
         </div>
 
         {/* Progress bar */}
@@ -101,7 +100,7 @@ export default function Dashboard() {
             href="/translate"
             icon={<Languages size={20} />}
             title="Translate"
-            subtitle="English ↔ Kinyarwanda"
+            subtitle="Quick lookup"
           />
           <ActionCard
             href="/radio"

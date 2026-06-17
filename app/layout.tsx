@@ -6,9 +6,9 @@ import Nav from "@/components/Nav";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
-  title: "Kinya — Learn Kinyarwanda",
-  description: "Flashcards, translation, and daily radio habits for learning Kinyarwanda",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Kinya" },
+  title: "Concur — Concurrency Reference",
+  description: "Flashcard drills, concept lookup, and daily listening for mastering concurrency patterns",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Concur" },
 };
 
 export const viewport: Viewport = {

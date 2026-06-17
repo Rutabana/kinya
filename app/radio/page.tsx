@@ -114,7 +114,7 @@ export default function RadioPage() {
 
       <h1 className="text-2xl font-bold mb-1">Radio</h1>
       <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>
-        Listen to Kinyarwanda for 15 minutes a day. Immersion builds fluency.
+        Listen for 15 minutes a day. Immersion builds fluency.
       </p>
 
       {/* Timer circle */}

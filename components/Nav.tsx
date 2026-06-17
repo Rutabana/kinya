@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, BookOpen, Languages, Radio } from "lucide-react";
 
 const links = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/flashcards", label: "Flashcards", icon: BookOpen },
-  { href: "/translate", label: "Translate", icon: Languages },
-  { href: "/radio", label: "Radio", icon: Radio },
+  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/flashcards", label: "Drills", icon: BookOpen },
+  { href: "/translate", label: "Lookup", icon: Languages },
+  { href: "/radio", label: "Podcasts", icon: Radio },
 ];
 
 export default function Nav() {
@@ -35,10 +35,10 @@ export default function Nav() {
           </div>
           <div>
             <span className="text-base font-bold tracking-tight leading-none block">
-              Kinya
+              Concur
             </span>
             <span className="text-[10px] leading-none" style={{ color: "var(--text-muted)" }}>
-              Learn Kinyarwanda
+              Concurrency Ref
             </span>
           </div>
         </div>
@@ -83,7 +83,7 @@ export default function Nav() {
         {/* Footer */}
         <div className="mt-auto px-5 py-5">
           <p className="text-[10px]" style={{ color: "var(--text-muted)", opacity: 0.5 }}>
-            🇷🇼 Land of a thousand hills
+            async · threads · channels
           </p>
         </div>
       </aside>
